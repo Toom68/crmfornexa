@@ -9,8 +9,8 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3001";
 
 test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/login`);
-  await page.getByLabel("Email").fill("admin@nexa.test");
-  await page.getByLabel("Password").fill("nexa-admin-2026");
+  await page.getByLabel("Username or email").fill("tomy");
+  await page.getByLabel("Password").fill("tomy");
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/today/);
 });
@@ -29,7 +29,7 @@ test("add a prospect manually and it lands in the list", async ({ page }) => {
   await page.getByLabel("City").fill("Melbourne");
   await page.getByRole("button", { name: "Create business" }).click();
   await expect(page).toHaveURL(/\/prospects\//);
-  await expect(page.getByText(`E2E Bathrooms ${stamp}`)).toBeVisible();
+  await expect(page.getByRole("heading", { name: `E2E Bathrooms ${stamp}` })).toBeVisible();
 });
 
 test("private links 404 for invalid tokens and never leak internals", async ({ page }) => {

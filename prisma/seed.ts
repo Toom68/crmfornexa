@@ -9,14 +9,14 @@ async function main() {
   // ---- first team account (created through better-auth so the password
   // hash exactly matches whatever version is installed) ----
   const { auth } = await import("../src/lib/auth");
-  const email = "admin@nexa.test";
+  const email = "tomy@nexa.test";
   const existing = await prisma.user.findUnique({ where: { email } });
   if (!existing) {
     const res = await auth.api.signUpEmail({
-      body: { name: "Admin", email, password: "nexa-admin-2026" },
+      body: { name: "Tomy", email, password: "tomy" },
     });
     if (!res.user) throw new Error("signUpEmail failed");
-    console.log("Created login: admin@nexa.test / nexa-admin-2026");
+    console.log("Created login: tomy / tomy");
   }
 
   // ---- built-in templates ----

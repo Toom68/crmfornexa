@@ -22,11 +22,12 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
     setError(null);
     setBusy(true);
     try {
+      const login = email.includes("@") ? email : `${email}@nexa.test`;
       if (mode === "signup") {
-        const res = await authClient.signUp.email({ name, email, password });
+        const res = await authClient.signUp.email({ name, email: login, password });
         if (res.error) throw new Error(res.error.message ?? "Sign up failed");
       } else {
-        const res = await authClient.signIn.email({ email, password });
+        const res = await authClient.signIn.email({ email: login, password });
         if (res.error) throw new Error(res.error.message ?? "Sign in failed");
       }
       router.push("/today");
@@ -49,10 +50,10 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Username or email</Label>
             <Input
               id="email"
-              type="email"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -65,7 +66,7 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              minLength={8}
+              minLength={4}
               required
             />
           </div>

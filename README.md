@@ -29,7 +29,7 @@ npm run db:seed                 # demo login + sample data (clearly labelled)
 npm run dev
 ```
 
-Login: `admin@nexa.test` / `nexa-admin-2026` (seed account — change it).
+Login: `tomy` / `tomy` (seed account — change it). A bare username signs in as `name@nexa.test`; full emails work too.
 New teammates create accounts on `/login`; everyone has full access.
 
 ## Background jobs
