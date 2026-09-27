@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nexa CRM
 
-## Getting Started
+A lightweight CRM + content-production system for an Australian SEO-article business.
+Phase 1 covers the full prospecting → outreach loop: find renovation businesses,
+verify they're a fit (inactive blog + weak organic visibility), produce a free article
+via n8n/OpenAI, deliver it over a private link, send a templated introduction, and
+manage replies and follow-ups in a shared inbox.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, TypeScript) — UI + API in one app, deploys to Vercel free tier
+- **Postgres** via Prisma 7 (Docker locally, Neon free tier in prod)
+- **better-auth** — individual team logins, full access for everyone
+- **Tailwind v4 + shadcn/ui + Tiptap** — polished desktop UI + article editor
+- **n8n** (self-hosted, Docker) — AI pipelines: business profile, topics, research, draft
+- **OpenAI** — the model behind n8n (configurable, `OPENAI_MODEL`)
+- **DataForSEO** — discovery + organic rank checks (~A$0.003 per top-50 check)
+- **Gmail (OAuth)** — shared inbox + outbound sends
+- **SMS** — adapter interface; simulated until Twilio/ClickSend is configured
+
+## Setup
 
 ```bash
+cp .env.example .env            # then fill in secrets (see "Integrations" below)
+docker compose up -d postgres   # local database
+npm install
+npm run db:migrate
+npm run db:seed                 # demo login + sample data (clearly labelled)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Login: `admin@nexa.test` / `nexa-admin-2026` (seed account — change it).
+New teammates create accounts on `/login`; everyone has full access.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Background jobs
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+All background work is a `Job` row — resumable, idempotent, retryable.
 
-## Learn More
+- **Local dev:** hit `POST /api/internal/tick` with header `x-internal-secret: $INTERNAL_API_SECRET`
+  (or let GitHub Actions do it — see below).
+- **Prod:** `.github/workflows/tick.yml` pings the endpoint every ~10 min.
+  Set repo secret `INTERNAL_API_SECRET` and variable `APP_BASE_URL`.
+- **n8n:** `docker compose up -d n8n` → http://localhost:5678 → import
+  `n8n/workflows/nexa-ai-poller.json` → activate. It polls `/api/n8n/jobs/next`
+  and posts results to `/api/n8n/callback`. Needs `OPENAI_API_KEY` in `.env`.
+  No inbound ports — if the machine is off, jobs visibly queue.
 
-To learn more about Next.js, take a look at the following resources:
+## Integrations (fill in .env when ready — app runs labelled-simulation mode without them)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Key | What |
+|---|---|
+| `GOOGLE_CLIENT_ID/SECRET` + `/api/integrations/gmail/connect` | Gmail shared inbox (OAuth, unverified app — see docs/architecture.md) |
+| `DATAFORSEO_LOGIN/PASSWORD` | Prospect discovery + organic rank checks |
+| `OPENAI_API_KEY` | n8n research/drafting |
+| `SMS_PROVIDER=twilio|clicksend` + creds | Real SMS. Inbound replies need a dedicated number pointed at `/api/webhooks/sms` |
+| `MAILGUN_*` | Reserved — for when a sending domain exists |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Test
 
-## Deploy on Vercel
+```bash
+npm test                 # vitest unit + integration tests
+npx playwright test      # e2e journeys (needs `npx playwright install chromium` once)
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Docs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `docs/architecture.md` — how the pieces fit, cost forecast, decisions
+- `docs/requirements.md` — living spec + implementation status

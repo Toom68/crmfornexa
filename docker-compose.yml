@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexa
+      POSTGRES_PASSWORD: nexa
+      POSTGRES_DB: nexa_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexa -d nexa_crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: admin
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_ADMIN_PASSWORD:-changeme}
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5678/
+      GENERIC_TIMEZONE: Australia/Melbourne
+      # The CRM app base URL n8n should call back to. In dev this is the Next dev server.
+      CRM_BASE_URL: ${CRM_BASE_URL:-http://host.docker.internal:3000}
+      CRM_N8N_SECRET: ${CRM_N8N_SECRET:-dev-n8n-secret}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - n8ndata:/home/node/.n8n
+      - ./n8n/workflows:/opt/workflows:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  n8ndata:

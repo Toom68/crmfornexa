@@ -1,0 +1,262 @@
+{
+  "name": "Nexa CRM — AI job poller",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 1 }] }
+      },
+      "id": "poll-trigger",
+      "name": "Poll every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CRM_BASE_URL }}/api/n8n/jobs/next",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-n8n-secret", "value": "={{ $env.CRM_N8N_SECRET }}" }]
+        },
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "fetch-job",
+      "name": "Fetch next job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-980, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "has-job",
+              "leftValue": "={{ $json.job }}",
+              "rightValue": "",
+              "operator": { "type": "object", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-job",
+      "name": "Job waiting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-760, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.job.type }}",
+                    "rightValue": "n8n_profile",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "profile"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.job.type }}",
+                    "rightValue": "n8n_topics",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "topics"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "c3",
+                    "leftValue": "={{ $json.job.type }}",
+                    "rightValue": "n8n_research",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "research"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "c4",
+                    "leftValue": "={{ $json.job.type }}",
+                    "rightValue": "n8n_draft",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "draft"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-type",
+      "name": "Route by job type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-540, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { job, context } = $input.first().json;\nconst b = context.business ?? {};\nconst inspection = (b.inspections ?? [])[0] ?? {};\nconst system = \"You analyse Australian trade-business websites and return strict JSON only.\";\nconst user = [\n  `Business: ${b.name}`,\n  `Website: ${b.website ?? 'unknown'}`,\n  `Categories: ${(b.categories ?? []).join(', ')}`,\n  `Location: ${[b.suburb, b.city, b.state].filter(Boolean).join(', ')}`,\n  `Site title: ${inspection.siteTitle ?? ''}`,\n  `Site description: ${inspection.siteSummary ?? ''}`,\n  `Existing profile notes: ${JSON.stringify(b.profile ?? {})}`,\n  '',\n  'Return JSON: {\"summary\": string, \"services\": string[], \"serviceAreas\": string[], \"differentiators\": string[]}.',\n  'Only state what the evidence supports — never invent qualifications, prices, or guarantees.'\n].join('\\n');\nreturn [{ json: { jobId: job.id, system, user } }];"
+      },
+      "id": "prompt-profile",
+      "name": "Prompt: profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 60]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { job, context } = $input.first().json;\nconst b = context.business ?? {};\nconst p = b.profile ?? {};\nconst system = \"You suggest SEO article topics for Australian trade businesses. Return strict JSON only.\";\nconst user = [\n  `Business: ${b.name} (${[b.city, b.state].filter(Boolean).join(', ')})`,\n  `Services: ${(p.services ?? b.categories ?? []).join(', ')}`,\n  `Service areas: ${(p.serviceAreas ?? []).join(', ')}`,\n  `Summary: ${p.summary ?? ''}`,\n  `Notes for writer: ${p.notesForWriter ?? ''}`,\n  '',\n  'Suggest 3 article topics this business could publish on their own blog.',\n  'Each must match a real search intent a homeowner in their area would have.',\n  'Return JSON: {\"topics\": [{\"title\": string, \"rationale\": string, \"intentNote\": string}]}.'\n].join('\\n');\nreturn [{ json: { jobId: job.id, system, user } }];"
+      },
+      "id": "prompt-topics",
+      "name": "Prompt: topics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { job, context } = $input.first().json;\nconst b = context.business ?? {};\nconst a = context.article ?? {};\nconst p = b.profile ?? {};\nconst system = \"You prepare research briefs for SEO articles about Australian trade businesses. Return strict JSON only.\";\nconst user = [\n  `Business: ${b.name} (${[b.city, b.state].filter(Boolean).join(', ')})`,\n  `Website: ${b.website ?? ''}`,\n  `Services: ${(p.services ?? []).join(', ')}`,\n  `Approved topic: ${a.topic?.title ?? a.title}`,\n  `Topic rationale: ${a.topic?.rationale ?? ''}`,\n  '',\n  'Produce a research brief for an article on this topic.',\n  'Return JSON: {\n  \"summary\": string,\n  \"audienceIntent\": string,\n  \"suggestedKeywords\": string[],\n  \"sources\": [{\"url\": string, \"title\": string, \"note\": string}],\n  \"competingUrls\": string[],\n  \"claimsToVerify\": string[],\n  \"internalLinks\": [{\"url\": string, \"anchor\": string}]\n}.',\n  'Rules: sources must be real pages you are confident exist (ABS, government, standards bodies, major publications).',\n  'Anything a human must fact-check — prices, regulations, statistics — goes in claimsToVerify.',\n  'Do NOT invent statistics, prices, qualifications, testimonials, or guarantees.'\n].join('\\n');\nreturn [{ json: { jobId: job.id, system, user } }];"
+      },
+      "id": "prompt-research",
+      "name": "Prompt: research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { job, context } = $input.first().json;\nconst b = context.business ?? {};\nconst a = context.article ?? {};\nconst p = b.profile ?? {};\nconst brief = a.researchBrief ?? {};\nconst system = \"You write genuinely useful SEO articles in Australian English for trade businesses. Return strict JSON only.\";\nconst user = [\n  `Client business: ${b.name} (${[b.city, b.state].filter(Boolean).join(', ')})`,\n  `Website: ${b.website ?? ''}`,\n  `Services: ${(p.services ?? []).join(', ')}`,\n  `Service areas: ${(p.serviceAreas ?? []).join(', ')}`,\n  `Article topic: ${a.title}`,\n  `Research brief: ${JSON.stringify(brief)}`,\n  `Writer notes: ${p.notesForWriter ?? ''}`,\n  '',\n  'Write a ~1200-1600 word article. Structure: H1 title (returned separately), intro, H2/H3 sections, a natural call to action mentioning the business.',\n  'Australian English, local context, practical and accurate. Match the search intent in the brief.',\n  'Weave suggested internal links in naturally where they fit.',\n  'Do NOT invent prices, qualifications, project experience, testimonials, or guarantees.',\n  'Return JSON: {\"title\": string, \"contentHtml\": \"<h2>…</h2><p>…</p>… (HTML without the H1 — title goes in the title field)\", \"meta\": {\"metaDescription\": string, \"keywords\": string[]}}.'\n].join('\\n');\nreturn [{ json: { jobId: job.id, system, user } }];"
+      },
+      "id": "prompt-draft",
+      "name": "Prompt: draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENAI_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.4, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ] }) }}",
+        "options": { "timeout": 180000 }
+      },
+      "id": "call-openai",
+      "name": "Call OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, 240],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nif (item.error || !item.choices?.[0]?.message?.content) {\n  return [{ json: { jobId: item.jobId ?? null, ok: false, error: item.error?.message ?? item.message ?? 'OpenAI call failed' } }];\n}\nlet result;\ntry {\n  result = JSON.parse(item.choices[0].message.content);\n} catch (e) {\n  return [{ json: { jobId: item.jobId, ok: false, error: 'Model returned non-JSON output' } }];\n}\nconst usage = item.usage ?? {};\nconst costCents = Math.ceil(((usage.prompt_tokens ?? 0) * 0.00015 + (usage.completion_tokens ?? 0) * 0.0006) * 100);\nreturn [{ json: { jobId: item.jobId, ok: true, result, costCents } }];"
+      },
+      "id": "pack-result",
+      "name": "Pack result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_BASE_URL }}/api/n8n/callback",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n8n-secret", "value": "={{ $env.CRM_N8N_SECRET }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "post-callback",
+      "name": "Post result to CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{ json: { jobId: item.jobId ?? null, ok: false, error: `Workflow error: ${item.error?.message ?? 'unknown'}` } }];"
+      },
+      "id": "pack-failure",
+      "name": "Pack failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 440]
+    }
+  ],
+  "connections": {
+    "Poll every minute": { "main": [[{ "node": "Fetch next job", "type": "main", "index": 0 }]] },
+    "Fetch next job": { "main": [[{ "node": "Job waiting?", "type": "main", "index": 0 }]] },
+    "Job waiting?": { "main": [[{ "node": "Route by job type", "type": "main", "index": 0 }]] },
+    "Route by job type": {
+      "main": [
+        [{ "node": "Prompt: profile", "type": "main", "index": 0 }],
+        [{ "node": "Prompt: topics", "type": "main", "index": 0 }],
+        [{ "node": "Prompt: research", "type": "main", "index": 0 }],
+        [{ "node": "Prompt: draft", "type": "main", "index": 0 }]
+      ]
+    },
+    "Prompt: profile": { "main": [[{ "node": "Call OpenAI", "type": "main", "index": 0 }]] },
+    "Prompt: topics": { "main": [[{ "node": "Call OpenAI", "type": "main", "index": 0 }]] },
+    "Prompt: research": { "main": [[{ "node": "Call OpenAI", "type": "main", "index": 0 }]] },
+    "Prompt: draft": { "main": [[{ "node": "Call OpenAI", "type": "main", "index": 0 }]] },
+    "Call OpenAI": {
+      "main": [
+        [{ "node": "Pack result", "type": "main", "index": 0 }],
+        [{ "node": "Pack failure", "type": "main", "index": 0 }]
+      ]
+    },
+    "Pack result": { "main": [[{ "node": "Post result to CRM", "type": "main", "index": 0 }]] },
+    "Pack failure": { "main": [[{ "node": "Post result to CRM", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": []
+}

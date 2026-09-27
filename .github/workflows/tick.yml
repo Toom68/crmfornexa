@@ -1,0 +1,20 @@
+name: Tick
+
+# Heartbeat for the CRM's job runner. Hits /api/internal/tick so queued
+# work (email polls, inspections, sends, retries) runs on a schedule.
+# Schedule drift of a few minutes is normal and fine for these jobs.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping tick endpoint
+        run: |
+          curl -fsS -X POST \
+            -H "x-internal-secret: ${{ secrets.INTERNAL_API_SECRET }}" \
+            "${{ vars.APP_BASE_URL }}/api/internal/tick" || echo "tick failed (non-fatal)"

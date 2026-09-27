@@ -1,0 +1,514 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -------------------- Auth (better-auth) --------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  assigned        Business[]         @relation("assignee")
+  activity        ActivityLog[]
+  sentMessages    Message[]          @relation("sentBy")
+  articlesCreated Article[]          @relation("articleCreator")
+  versionsCreated ArticleVersion[]   @relation("versionCreator")
+  topicsCreated   Topic[]            @relation("topicCreator")
+  linksCreated    PrivateLink[]      @relation("linkCreator")
+  templates       MessageTemplate[]  @relation("templateCreator")
+  notes           BusinessNote[]     @relation("noteAuthor")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// -------------------- CRM core --------------------
+
+enum SalesStage {
+  NEW_PROSPECT
+  PREPARING_OUTREACH
+  CONTACTED
+  INTERESTED
+  PROPOSAL
+  WON
+  LOST
+  DO_NOT_CONTACT
+}
+
+enum QualificationStatus {
+  UNCHECKED
+  QUEUED
+  STRONG        // weak organic visibility + inactive blog
+  MODERATE      // one strong signal
+  LOW           // e.g. no blog at all
+  DISQUALIFIED
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  name        String
+  website     String?
+  domain      String?  @unique // normalised, lower-case, no www
+  phone       String?
+  email       String?
+  address     String?
+  suburb      String?
+  city        String?
+  state       String?
+  categories  Json     @default("[]") // string[]
+  source      String   @default("manual") // manual | discovery:<runId> | directory
+  isSample    Boolean  @default(false)    // seeded/demo rows are always labelled
+
+  salesStage           SalesStage          @default(NEW_PROSPECT)
+  qualificationStatus  QualificationStatus @default(UNCHECKED)
+  qualificationScore   Int                 @default(0)
+  qualificationSummary String?
+
+  assignedToId String?
+  assignedTo   User?    @relation("assignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  nextAction   String?
+  nextActionAt DateTime?
+
+  // Editable business profile (built from website, corrected by team)
+  profile Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts            Contact[]
+  rankingObservations RankingObservation[]
+  inspections         WebsiteInspection[]
+  topics              Topic[]
+  articles            Article[]
+  messages            Message[]
+  notes               BusinessNote[]
+  discoveryHits       DiscoveryHit[]
+
+  @@index([salesStage])
+  @@index([nextActionAt])
+  @@index([name])
+}
+
+model Contact {
+  id         String  @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String?
+  role       String?
+  email      String?
+  phone      String?
+  isPrimary  Boolean @default(false)
+  // Compliance: where did this address come from and on what basis may we message?
+  source          String  @default("website") // website | manual | directory | replied
+  permissionBasis String  @default("inferred_business") // inferred_business | express | replied | unknown
+  optedOut        Boolean @default(false)
+  optedOutAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  messages Message[]
+
+  @@index([businessId])
+  @@index([email])
+}
+
+model BusinessNote {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?    @relation("noteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  body       String
+  createdAt  DateTime @default(now())
+}
+
+// -------------------- Discovery & qualification --------------------
+
+model DiscoveryRun {
+  id          String   @id @default(cuid())
+  category    String
+  city        String
+  source      String // dataforseo_maps | dataforseo_organic | manual
+  keyword     String?
+  status      String   @default("running") // running | done | failed
+  resultCount Int      @default(0)
+  costCents   Int      @default(0)
+  error       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  hits        DiscoveryHit[]
+}
+
+model DiscoveryHit {
+  id             String       @id @default(cuid())
+  runId          String
+  run            DiscoveryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  name           String
+  website        String?
+  domain         String?
+  phone          String?
+  address        String?
+  suburb         String?
+  rating         Float?
+  sourcePosition Int?         // e.g. organic position or maps rank when discovered
+  raw            Json?
+  status         String       @default("new") // new | imported | duplicate | rejected
+  businessId     String?
+  business       Business?    @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+}
+
+enum RankStatus {
+  FOUND
+  NOT_FOUND_IN_DEPTH // checked to configured depth, not present — NOT "doesn't rank anywhere"
+  ERROR
+}
+
+model RankingObservation {
+  id          String     @id @default(cuid())
+  businessId  String
+  business    Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  keyword     String
+  location    String // e.g. "Melbourne, Victoria, Australia"
+  device      String     @default("desktop")
+  source      String     @default("dataforseo")
+  checkedAt   DateTime   @default(now())
+  status      RankStatus
+  position    Int?       // organic position when FOUND
+  depth       Int        @default(50)
+  serpSnapshot Json?     // compact evidence: top organic URLs seen, feature flags
+  evidenceUrl String?
+  costCents   Int        @default(0)
+
+  @@index([businessId, checkedAt])
+}
+
+enum InspectionStatus {
+  PENDING
+  ACTIVE_BLOG        // blog found, last post < inactive threshold
+  INACTIVE_BLOG      // blog found, last post >= inactive threshold
+  NO_BLOG            // site checked, no blog found — lower priority, not a failure
+  UNKNOWN_LAST_POST  // blog found but no reliable publication dates
+  FETCH_FAILED       // site could not be inspected — never a negative signal
+  ERROR
+}
+
+model WebsiteInspection {
+  id             String           @id @default(cuid())
+  businessId     String
+  business       Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inspectedAt    DateTime         @default(now())
+  status         InspectionStatus
+  blogUrl        String?
+  lastPostAt     DateTime?
+  lastPostSource String?          // rss | sitemap | page-date-heuristic
+  siteTitle      String?
+  siteSummary    String?
+  evidence       Json?            // urls checked, feed url, dates seen
+  error          String?
+
+  @@index([businessId, inspectedAt])
+}
+
+// -------------------- Topics & articles --------------------
+
+enum TopicStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+}
+
+model Topic {
+  id          String      @id @default(cuid())
+  businessId  String
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title       String
+  rationale   String?
+  intentNote  String?     // why this matches search intent / audience
+  status      TopicStatus @default(PROPOSED)
+  createdById String?
+  createdBy   User?       @relation("topicCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  decidedById String?
+  decidedAt   DateTime?
+  origin      String      @default("ai") // ai | manual
+  createdAt   DateTime    @default(now())
+
+  articles Article[]
+}
+
+enum ArticleStage {
+  TOPIC_PROPOSED
+  TOPIC_APPROVED
+  RESEARCH
+  DRAFT
+  HUMAN_EDIT
+  CLIENT_REVIEW
+  REVISIONS
+  APPROVED
+  DELIVERED
+}
+
+enum VersionOrigin {
+  AI_DRAFT
+  RESEARCH_REGEN
+  HUMAN_EDIT
+  CLIENT_FEEDBACK_REVISION
+}
+
+model Article {
+  id              String       @id @default(cuid())
+  businessId      String
+  business        Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  topicId         String?
+  topic           Topic?       @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  title           String
+  stage           ArticleStage @default(TOPIC_PROPOSED)
+  isFreeOffer     Boolean      @default(false) // the free outreach article
+  researchBrief   Json?        // sources, competing urls, claims to verify, internal link candidates
+  scheduledFor    DateTime?    // later phases: release calendar
+  deliveredAt     DateTime?
+  currentVersionId String?     // set after versions exist (no FK cycle)
+  createdById     String?
+  createdBy       User?        @relation("articleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  versions ArticleVersion[]
+  links    PrivateLink[]
+
+  @@index([businessId, stage])
+}
+
+model ArticleVersion {
+  id          String         @id @default(cuid())
+  articleId   String
+  article     Article        @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  version     Int
+  title       String
+  contentHtml String         @db.Text
+  contentJson Json?          // tiptap doc
+  meta        Json?          // metaDescription, keywords, sources[], claimsToVerify[], internalLinks[]
+  origin      VersionOrigin
+  createdById String?
+  createdBy   User?          @relation("versionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+
+  links    PrivateLink[]
+  feedback Feedback[]
+
+  @@unique([articleId, version])
+}
+
+model PrivateLink {
+  id               String    @id @default(cuid())
+  tokenHash        String    @unique // sha256 of the URL token — raw token never stored
+  articleId        String
+  article          Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleVersionId String
+  articleVersion   ArticleVersion @relation(fields: [articleVersionId], references: [id], onDelete: Cascade)
+  label            String?
+  revokedAt        DateTime?
+  expiresAt        DateTime?
+  viewCount        Int       @default(0)
+  lastViewedAt     DateTime?
+  createdById      String?
+  createdBy        User?     @relation("linkCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime  @default(now())
+
+  feedback Feedback[]
+}
+
+model Feedback {
+  id               String   @id @default(cuid())
+  privateLinkId    String?
+  privateLink      PrivateLink? @relation(fields: [privateLinkId], references: [id], onDelete: SetNull)
+  articleVersionId String
+  articleVersion   ArticleVersion @relation(fields: [articleVersionId], references: [id], onDelete: Cascade)
+  contactName      String?
+  body             String   @db.Text
+  submittedAt      DateTime @default(now())
+}
+
+// -------------------- Messaging --------------------
+
+enum MessageChannel {
+  EMAIL
+  SMS
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  DRAFT
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+  RECEIVED
+  SIMULATED // clearly labelled — never sent externally
+}
+
+model MessageTemplate {
+  id          String          @id @default(cuid())
+  name        String
+  channel     MessageChannel
+  subject     String?         // email only
+  body        String          @db.Text // merge fields: {{business_name}}, {{article_link}}, {{sender_name}}, {{unsubscribe_url}}
+  isBuiltIn   Boolean         @default(false)
+  createdById String?
+  createdBy   User?           @relation("templateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  messages Message[]
+}
+
+model Message {
+  id               String           @id @default(cuid())
+  businessId       String
+  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  contactId        String?
+  contact          Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  channel          MessageChannel
+  direction        MessageDirection
+  status           MessageStatus
+  subject          String?
+  bodyText         String           @db.Text
+  bodyHtml         String?          @db.Text
+  templateId       String?
+  template         MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  sentById         String?
+  sentBy           User?            @relation("sentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  sentAt           DateTime?
+  // threading / dedup
+  provider         String?          // gmail | mailgun | twilio | clicksend | simulated
+  providerMessageId String?
+  providerThreadId  String?
+  rfcMessageId     String?
+  inReplyTo        String?
+  idempotencyKey   String?          @unique
+  error            String?
+  createdAt        DateTime         @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([providerThreadId])
+  @@index([rfcMessageId])
+}
+
+// Connected mailbox for the shared inbox (Gmail OAuth tokens, encrypted)
+model EmailAccount {
+  id                String   @id @default(cuid())
+  provider          String   @default("gmail")
+  email             String
+  refreshTokenEnc   String   // AES-256-GCM encrypted with APP_SECRET
+  accessTokenEnc    String?
+  accessTokenExpAt  DateTime?
+  lastHistoryId     String?  // incremental Gmail history sync cursor
+  lastPolledAt      DateTime?
+  status            String   @default("active")
+  connectedById     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// -------------------- Jobs, settings, audit --------------------
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  type           String    // inspect_website | rank_check | gmail_poll | send_message | followup_scan | n8n:* | discovery_run
+  payload        Json
+  status         JobStatus @default(PENDING)
+  runAt          DateTime  @default(now())
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(3)
+  progress       Int       @default(0)
+  progressNote   String?
+  result         Json?
+  error          String?
+  idempotencyKey String?   @unique // retries never duplicate effects
+  costCents      Int       @default(0)
+  lockedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, runAt])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String   // e.g. business.update, message.send, article.stage_change
+  entityType String
+  entityId   String
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
