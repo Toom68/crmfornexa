@@ -45,10 +45,13 @@ test.afterAll(async () => {
   await client.end();
 });
 
+const E2E_EMAIL = process.env.E2E_EMAIL ?? "";
+const E2E_PASSWORD = process.env.E2E_PASSWORD ?? "";
+
 test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/login`);
-  await page.getByLabel("Username or email").fill("tomy");
-  await page.getByLabel("Password").fill("tomy");
+  await page.getByLabel("Email").fill(E2E_EMAIL);
+  await page.getByLabel("Password").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/today/);
 });

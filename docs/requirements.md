@@ -43,7 +43,7 @@ Small team, everyone full access, individual accounts, desktop-first UI.
 ### Done — phase 0 + phase 1 core (this repo)
 
 - [x] Next.js 16 + TS + Tailwind v4 + shadcn/ui app shell (Today/Prospects/Articles/Inbox/Settings)
-- [x] better-auth credential accounts; first-run account creation; team list
+- [x] Supabase Auth email+password accounts; sign-up on /login; team list
 - [x] Postgres schema (Prisma 7) — businesses, contacts, findings, topics, articles+versions,
       private links (hashed tokens), feedback, templates, messages, jobs, settings, activity log
 - [x] Job queue: DB-backed, idempotent, retry w/ backoff; `/api/internal/tick` + GH Actions cron

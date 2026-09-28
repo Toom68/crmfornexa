@@ -61,7 +61,7 @@
 ## Deploy (Vercel)
 
 1. Create a Supabase project and set its transaction pooler URL as `DATABASE_URL` and session pooler URL as `DIRECT_URL` in Vercel.
-2. Set `APP_BASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_SECRET`,
+2. Set `APP_BASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `APP_SECRET`,
    `INTERNAL_API_SECRET`, `CRM_N8N_SECRET` + provider keys.
 3. `prisma migrate deploy` (locally against the prod URL, or a CI step).
 4. Add GitHub repo secret `INTERNAL_API_SECRET` + variable `APP_BASE_URL`.

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,20 +15,31 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setBusy(true);
     try {
-      const login = email.includes("@") ? email : `${email}@nexa.test`;
+      const supabase = supabaseBrowser();
       if (mode === "signup") {
-        const res = await authClient.signUp.email({ name, email: login, password });
-        if (res.error) throw new Error(res.error.message ?? "Sign up failed");
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { name } },
+        });
+        if (error) throw error;
+        if (!data.session) {
+          setNotice("Account created — confirm your email, then sign in.");
+          setMode("signin");
+          return;
+        }
       } else {
-        const res = await authClient.signIn.email({ email: login, password });
-        if (res.error) throw new Error(res.error.message ?? "Sign in failed");
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
       }
       router.push("/today");
       router.refresh();
@@ -50,10 +61,11 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="email">Username or email</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
               id="email"
-              type="text"
+              type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -64,13 +76,15 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
             <Input
               id="password"
               type="password"
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              minLength={4}
+              minLength={6}
               required
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? "…" : mode === "signup" ? "Create account" : "Sign in"}
           </Button>
@@ -78,7 +92,11 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
         <button
           type="button"
           className="mt-4 w-full text-center text-sm text-muted-foreground underline-offset-2 hover:underline"
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          onClick={() => {
+            setMode(mode === "signin" ? "signup" : "signin");
+            setError(null);
+            setNotice(null);
+          }}
         >
           {mode === "signin" ? "New team member? Create an account" : "Already have an account? Sign in"}
         </button>

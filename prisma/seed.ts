@@ -6,18 +6,9 @@ const adapter = new PrismaPg({ connectionString: process.env.DIRECT_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  // ---- first team account (created through better-auth so the password
-  // hash exactly matches whatever version is installed) ----
-  const { auth } = await import("../src/lib/auth");
-  const email = "tomy@nexa.test";
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (!existing) {
-    const res = await auth.api.signUpEmail({
-      body: { name: "Tomy", email, password: "tomy" },
-    });
-    if (!res.user) throw new Error("signUpEmail failed");
-    console.log("Created login: tomy / tomy");
-  }
+  // Login credentials live in Supabase Auth — create a team member there
+  // (Authentication → Users, or the sign-up form on /login) and the app
+  // profile row is provisioned automatically on first sign-in.
   // ---- built-in templates ----
   const templates = [
     {

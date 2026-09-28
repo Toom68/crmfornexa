@@ -12,7 +12,7 @@ import {
   LogOut,
   Plus,
 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -109,7 +109,7 @@ export function AppSidebar({
           <DropdownMenuContent align="start" className="w-52">
             <DropdownMenuItem
               onClick={async () => {
-                await authClient.signOut();
+                await supabaseBrowser().auth.signOut();
                 router.push("/login");
                 router.refresh();
               }}

@@ -15,7 +15,7 @@ the same business record.
 
 - **Next.js 16** (App Router, TypeScript) — UI + API in one app, deploys to Vercel free tier
 - **Supabase Postgres** via Prisma 7
-- **better-auth** — individual team logins, full access for everyone
+- **Supabase Auth** — email + password team logins, full access for everyone
 - **Tailwind v4 + shadcn/ui + Tiptap** — polished desktop UI + article editor
 - **n8n** (self-hosted, Docker) — AI pipelines: business profile, topics, research, draft
 - **OpenAI** — the model behind n8n (configurable, `OPENAI_MODEL`)

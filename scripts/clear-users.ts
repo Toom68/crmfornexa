@@ -5,7 +5,8 @@ import "dotenv/config";
 const p = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 async function main() {
-  await p.account.deleteMany({});
+  // Clears app profile rows. The Supabase auth.users entries must be
+  // removed separately (Dashboard → Authentication → Users).
   await p.user.deleteMany({});
   console.log("users cleared");
 }
