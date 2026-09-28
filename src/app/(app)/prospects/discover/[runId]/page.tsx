@@ -74,10 +74,10 @@ export default async function DiscoveryRunPage({
                     {h.status === "new" && (
                       <div className="flex justify-end gap-2">
                         <form action={importDiscoveryHit.bind(null, h.id)}>
-                          <Button size="sm" variant="default">Import</Button>
+                          <Button type="submit" size="sm" variant="default">Import</Button>
                         </form>
                         <form action={rejectDiscoveryHit.bind(null, h.id)}>
-                          <Button size="sm" variant="ghost">Skip</Button>
+                          <Button type="submit" size="sm" variant="ghost">Skip</Button>
                         </form>
                       </div>
                     )}

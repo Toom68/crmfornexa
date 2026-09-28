@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { tick } from "@/lib/jobs";
+import { prisma } from "@/lib/db";
+import { tick, enqueueJob } from "@/lib/jobs";
 import "@/lib/jobs-register";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,13 @@ function authorised(req: Request): boolean {
 
 export async function POST(req: Request) {
   if (!authorised(req)) return NextResponse.json({ error: "unauthorised" }, { status: 401 });
+  // Bootstrap the hourly customer scan if it isn't already scheduled.
+  const scanQueued = await prisma.job.findFirst({
+    where: { type: "customer_scan", status: { in: ["PENDING", "RUNNING"] } },
+  });
+  if (!scanQueued) {
+    await enqueueJob("customer_scan", {}, { idempotencyKey: `customer_scan:${Date.now()}`, maxAttempts: 2 });
+  }
   const summary = await tick(45_000);
   return NextResponse.json({ ok: true, ...summary });
 }

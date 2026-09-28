@@ -10,25 +10,26 @@ datasource db {
 // -------------------- Auth (better-auth) --------------------
 
 model User {
-  id            String    @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String   @unique
+  emailVerified Boolean  @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  sessions        Session[]
-  accounts        Account[]
-  assigned        Business[]         @relation("assignee")
-  activity        ActivityLog[]
-  sentMessages    Message[]          @relation("sentBy")
-  articlesCreated Article[]          @relation("articleCreator")
-  versionsCreated ArticleVersion[]   @relation("versionCreator")
-  topicsCreated   Topic[]            @relation("topicCreator")
-  linksCreated    PrivateLink[]      @relation("linkCreator")
-  templates       MessageTemplate[]  @relation("templateCreator")
-  notes           BusinessNote[]     @relation("noteAuthor")
+  sessions         Session[]
+  accounts         Account[]
+  assigned         Business[]        @relation("assignee")
+  activity         ActivityLog[]
+  sentMessages     Message[]         @relation("sentBy")
+  articlesCreated  Article[]         @relation("articleCreator")
+  versionsCreated  ArticleVersion[]  @relation("versionCreator")
+  topicsCreated    Topic[]           @relation("topicCreator")
+  linksCreated     PrivateLink[]     @relation("linkCreator")
+  templates        MessageTemplate[] @relation("templateCreator")
+  notes            BusinessNote[]    @relation("noteAuthor")
+  paymentsRecorded Payment[]         @relation("paymentRecorder")
 }
 
 model Session {
@@ -85,34 +86,37 @@ enum SalesStage {
 enum QualificationStatus {
   UNCHECKED
   QUEUED
-  STRONG        // weak organic visibility + inactive blog
-  MODERATE      // one strong signal
-  LOW           // e.g. no blog at all
+  STRONG // weak organic visibility + inactive blog
+  MODERATE // one strong signal
+  LOW // e.g. no blog at all
   DISQUALIFIED
 }
 
 model Business {
-  id          String   @id @default(cuid())
-  name        String
-  website     String?
-  domain      String?  @unique // normalised, lower-case, no www
-  phone       String?
-  email       String?
-  address     String?
-  suburb      String?
-  city        String?
-  state       String?
-  categories  Json     @default("[]") // string[]
-  source      String   @default("manual") // manual | discovery:<runId> | directory
-  isSample    Boolean  @default(false)    // seeded/demo rows are always labelled
+  id         String  @id @default(cuid())
+  name       String
+  website    String?
+  domain     String? @unique // normalised, lower-case, no www
+  phone      String?
+  email      String?
+  address    String?
+  suburb     String?
+  city       String?
+  state      String?
+  categories Json    @default("[]") // string[]
+  source     String  @default("manual") // manual | discovery:<runId> | directory
 
   salesStage           SalesStage          @default(NEW_PROSPECT)
   qualificationStatus  QualificationStatus @default(UNCHECKED)
   qualificationScore   Int                 @default(0)
   qualificationSummary String?
 
+  // Customer state (phase 2+): a won prospect converts, or a customer is added directly
+  isCustomer    Boolean   @default(false)
+  customerSince DateTime?
+
   assignedToId String?
-  assignedTo   User?    @relation("assignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedTo   User?     @relation("assignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   nextAction   String?
   nextActionAt DateTime?
 
@@ -130,6 +134,11 @@ model Business {
   messages            Message[]
   notes               BusinessNote[]
   discoveryHits       DiscoveryHit[]
+  subscriptions       Subscription[]
+  contentPlans        ContentPlan[]
+  quotes              Quote[]
+  invoices            Invoice[]
+  clientLinks         ClientLink[]
 
   @@index([salesStage])
   @@index([nextActionAt])
@@ -137,21 +146,21 @@ model Business {
 }
 
 model Contact {
-  id         String  @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  name       String?
-  role       String?
-  email      String?
-  phone      String?
-  isPrimary  Boolean @default(false)
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name            String?
+  role            String?
+  email           String?
+  phone           String?
+  isPrimary       Boolean   @default(false)
   // Compliance: where did this address come from and on what basis may we message?
-  source          String  @default("website") // website | manual | directory | replied
-  permissionBasis String  @default("inferred_business") // inferred_business | express | replied | unknown
-  optedOut        Boolean @default(false)
+  source          String    @default("website") // website | manual | directory | replied
+  permissionBasis String    @default("inferred_business") // inferred_business | express | replied | unknown
+  optedOut        Boolean   @default(false)
   optedOutAt      DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   messages Message[]
 
@@ -172,17 +181,17 @@ model BusinessNote {
 // -------------------- Discovery & qualification --------------------
 
 model DiscoveryRun {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   category    String
   city        String
   source      String // dataforseo_maps | dataforseo_organic | manual
   keyword     String?
-  status      String   @default("running") // running | done | failed
-  resultCount Int      @default(0)
-  costCents   Int      @default(0)
+  status      String         @default("running") // running | done | failed
+  resultCount Int            @default(0)
+  costCents   Int            @default(0)
   error       String?
   createdById String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime       @default(now())
   hits        DiscoveryHit[]
 }
 
@@ -197,7 +206,7 @@ model DiscoveryHit {
   address        String?
   suburb         String?
   rating         Float?
-  sourcePosition Int?         // e.g. organic position or maps rank when discovered
+  sourcePosition Int? // e.g. organic position or maps rank when discovered
   raw            Json?
   status         String       @default("new") // new | imported | duplicate | rejected
   businessId     String?
@@ -212,31 +221,31 @@ enum RankStatus {
 }
 
 model RankingObservation {
-  id          String     @id @default(cuid())
-  businessId  String
-  business    Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  keyword     String
-  location    String // e.g. "Melbourne, Victoria, Australia"
-  device      String     @default("desktop")
-  source      String     @default("dataforseo")
-  checkedAt   DateTime   @default(now())
-  status      RankStatus
-  position    Int?       // organic position when FOUND
-  depth       Int        @default(50)
-  serpSnapshot Json?     // compact evidence: top organic URLs seen, feature flags
-  evidenceUrl String?
-  costCents   Int        @default(0)
+  id           String     @id @default(cuid())
+  businessId   String
+  business     Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  keyword      String
+  location     String // e.g. "Melbourne, Victoria, Australia"
+  device       String     @default("desktop")
+  source       String     @default("dataforseo")
+  checkedAt    DateTime   @default(now())
+  status       RankStatus
+  position     Int? // organic position when FOUND
+  depth        Int        @default(50)
+  serpSnapshot Json? // compact evidence: top organic URLs seen, feature flags
+  evidenceUrl  String?
+  costCents    Int        @default(0)
 
   @@index([businessId, checkedAt])
 }
 
 enum InspectionStatus {
   PENDING
-  ACTIVE_BLOG        // blog found, last post < inactive threshold
-  INACTIVE_BLOG      // blog found, last post >= inactive threshold
-  NO_BLOG            // site checked, no blog found — lower priority, not a failure
-  UNKNOWN_LAST_POST  // blog found but no reliable publication dates
-  FETCH_FAILED       // site could not be inspected — never a negative signal
+  ACTIVE_BLOG // blog found, last post < inactive threshold
+  INACTIVE_BLOG // blog found, last post >= inactive threshold
+  NO_BLOG // site checked, no blog found — lower priority, not a failure
+  UNKNOWN_LAST_POST // blog found but no reliable publication dates
+  FETCH_FAILED // site could not be inspected — never a negative signal
   ERROR
 }
 
@@ -248,10 +257,10 @@ model WebsiteInspection {
   status         InspectionStatus
   blogUrl        String?
   lastPostAt     DateTime?
-  lastPostSource String?          // rss | sitemap | page-date-heuristic
+  lastPostSource String? // rss | sitemap | page-date-heuristic
   siteTitle      String?
   siteSummary    String?
-  evidence       Json?            // urls checked, feed url, dates seen
+  evidence       Json? // urls checked, feed url, dates seen
   error          String?
 
   @@index([businessId, inspectedAt])
@@ -271,7 +280,7 @@ model Topic {
   business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
   title       String
   rationale   String?
-  intentNote  String?     // why this matches search intent / audience
+  intentNote  String? // why this matches search intent / audience
   status      TopicStatus @default(PROPOSED)
   createdById String?
   createdBy   User?       @relation("topicCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -303,22 +312,22 @@ enum VersionOrigin {
 }
 
 model Article {
-  id              String       @id @default(cuid())
-  businessId      String
-  business        Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  topicId         String?
-  topic           Topic?       @relation(fields: [topicId], references: [id], onDelete: SetNull)
-  title           String
-  stage           ArticleStage @default(TOPIC_PROPOSED)
-  isFreeOffer     Boolean      @default(false) // the free outreach article
-  researchBrief   Json?        // sources, competing urls, claims to verify, internal link candidates
-  scheduledFor    DateTime?    // later phases: release calendar
-  deliveredAt     DateTime?
-  currentVersionId String?     // set after versions exist (no FK cycle)
-  createdById     String?
-  createdBy       User?        @relation("articleCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id               String       @id @default(cuid())
+  businessId       String
+  business         Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  topicId          String?
+  topic            Topic?       @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  title            String
+  stage            ArticleStage @default(TOPIC_PROPOSED)
+  isFreeOffer      Boolean      @default(false) // the free outreach article
+  researchBrief    Json? // sources, competing urls, claims to verify, internal link candidates
+  scheduledFor     DateTime? // later phases: release calendar
+  deliveredAt      DateTime?
+  currentVersionId String? // set after versions exist (no FK cycle)
+  createdById      String?
+  createdBy        User?        @relation("articleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   versions ArticleVersion[]
   links    PrivateLink[]
@@ -327,18 +336,18 @@ model Article {
 }
 
 model ArticleVersion {
-  id          String         @id @default(cuid())
+  id          String        @id @default(cuid())
   articleId   String
-  article     Article        @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article     Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
   version     Int
   title       String
-  contentHtml String         @db.Text
-  contentJson Json?          // tiptap doc
-  meta        Json?          // metaDescription, keywords, sources[], claimsToVerify[], internalLinks[]
+  contentHtml String        @db.Text
+  contentJson Json? // tiptap doc
+  meta        Json? // metaDescription, keywords, sources[], claimsToVerify[], internalLinks[]
   origin      VersionOrigin
   createdById String?
-  createdBy   User?          @relation("versionCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime       @default(now())
+  createdBy   User?         @relation("versionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
 
   links    PrivateLink[]
   feedback Feedback[]
@@ -347,33 +356,33 @@ model ArticleVersion {
 }
 
 model PrivateLink {
-  id               String    @id @default(cuid())
-  tokenHash        String    @unique // sha256 of the URL token — raw token never stored
+  id               String         @id @default(cuid())
+  tokenHash        String         @unique // sha256 of the URL token — raw token never stored
   articleId        String
-  article          Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article          Article        @relation(fields: [articleId], references: [id], onDelete: Cascade)
   articleVersionId String
   articleVersion   ArticleVersion @relation(fields: [articleVersionId], references: [id], onDelete: Cascade)
   label            String?
   revokedAt        DateTime?
   expiresAt        DateTime?
-  viewCount        Int       @default(0)
+  viewCount        Int            @default(0)
   lastViewedAt     DateTime?
   createdById      String?
-  createdBy        User?     @relation("linkCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt        DateTime  @default(now())
+  createdBy        User?          @relation("linkCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime       @default(now())
 
   feedback Feedback[]
 }
 
 model Feedback {
-  id               String   @id @default(cuid())
+  id               String         @id @default(cuid())
   privateLinkId    String?
-  privateLink      PrivateLink? @relation(fields: [privateLinkId], references: [id], onDelete: SetNull)
+  privateLink      PrivateLink?   @relation(fields: [privateLinkId], references: [id], onDelete: SetNull)
   articleVersionId String
   articleVersion   ArticleVersion @relation(fields: [articleVersionId], references: [id], onDelete: Cascade)
   contactName      String?
-  body             String   @db.Text
-  submittedAt      DateTime @default(now())
+  body             String         @db.Text
+  submittedAt      DateTime       @default(now())
 }
 
 // -------------------- Messaging --------------------
@@ -400,46 +409,46 @@ enum MessageStatus {
 }
 
 model MessageTemplate {
-  id          String          @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
   channel     MessageChannel
-  subject     String?         // email only
-  body        String          @db.Text // merge fields: {{business_name}}, {{article_link}}, {{sender_name}}, {{unsubscribe_url}}
-  isBuiltIn   Boolean         @default(false)
+  subject     String? // email only
+  body        String         @db.Text // merge fields: {{business_name}}, {{article_link}}, {{sender_name}}, {{unsubscribe_url}}
+  isBuiltIn   Boolean        @default(false)
   createdById String?
-  createdBy   User?           @relation("templateCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdBy   User?          @relation("templateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   messages Message[]
 }
 
 model Message {
-  id               String           @id @default(cuid())
-  businessId       String
-  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  contactId        String?
-  contact          Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  channel          MessageChannel
-  direction        MessageDirection
-  status           MessageStatus
-  subject          String?
-  bodyText         String           @db.Text
-  bodyHtml         String?          @db.Text
-  templateId       String?
-  template         MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  sentById         String?
-  sentBy           User?            @relation("sentBy", fields: [sentById], references: [id], onDelete: SetNull)
-  sentAt           DateTime?
+  id                String           @id @default(cuid())
+  businessId        String
+  business          Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  contactId         String?
+  contact           Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  channel           MessageChannel
+  direction         MessageDirection
+  status            MessageStatus
+  subject           String?
+  bodyText          String           @db.Text
+  bodyHtml          String?          @db.Text
+  templateId        String?
+  template          MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  sentById          String?
+  sentBy            User?            @relation("sentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  sentAt            DateTime?
   // threading / dedup
-  provider         String?          // gmail | mailgun | twilio | clicksend | simulated
+  provider          String? // gmail | mailgun | twilio | clicksend | simulated
   providerMessageId String?
   providerThreadId  String?
-  rfcMessageId     String?
-  inReplyTo        String?
-  idempotencyKey   String?          @unique
-  error            String?
-  createdAt        DateTime         @default(now())
+  rfcMessageId      String?
+  inReplyTo         String?
+  idempotencyKey    String?          @unique
+  error             String?
+  createdAt         DateTime         @default(now())
 
   @@index([businessId, createdAt])
   @@index([providerThreadId])
@@ -448,18 +457,18 @@ model Message {
 
 // Connected mailbox for the shared inbox (Gmail OAuth tokens, encrypted)
 model EmailAccount {
-  id                String   @id @default(cuid())
-  provider          String   @default("gmail")
-  email             String
-  refreshTokenEnc   String   // AES-256-GCM encrypted with APP_SECRET
-  accessTokenEnc    String?
-  accessTokenExpAt  DateTime?
-  lastHistoryId     String?  // incremental Gmail history sync cursor
-  lastPolledAt      DateTime?
-  status            String   @default("active")
-  connectedById     String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String    @id @default(cuid())
+  provider         String    @default("gmail")
+  email            String
+  refreshTokenEnc  String // AES-256-GCM encrypted with APP_SECRET
+  accessTokenEnc   String?
+  accessTokenExpAt DateTime?
+  lastHistoryId    String? // incremental Gmail history sync cursor
+  lastPolledAt     DateTime?
+  status           String    @default("active")
+  connectedById    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 // -------------------- Jobs, settings, audit --------------------
@@ -474,7 +483,7 @@ enum JobStatus {
 
 model Job {
   id             String    @id @default(cuid())
-  type           String    // inspect_website | rank_check | gmail_poll | send_message | followup_scan | n8n:* | discovery_run
+  type           String // inspect_website | rank_check | gmail_poll | send_message | followup_scan | customer_scan | n8n:* | discovery_run
   payload        Json
   status         JobStatus @default(PENDING)
   runAt          DateTime  @default(now())
@@ -503,7 +512,7 @@ model ActivityLog {
   id         String   @id @default(cuid())
   actorId    String?
   actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  action     String   // e.g. business.update, message.send, article.stage_change
+  action     String // e.g. business.update, message.send, article.stage_change
   entityType String
   entityId   String
   meta       Json?
@@ -511,4 +520,216 @@ model ActivityLog {
 
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+// -------------------- Customers, packages, content plans, billing --------------------
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum BillingPreference {
+  INVOICE_APPROVAL // team sends invoice, client pays by transfer
+  AUTO_CHARGE // reserved — needs Stripe, offered later
+}
+
+model ArticlePackage {
+  id               String   @id @default(cuid())
+  name             String // "Growth — 4 articles/month"
+  articlesPerMonth Int
+  priceCents       Int
+  currency         String   @default("AUD")
+  description      String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  businessId        String
+  business          Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  packageId         String
+  package           ArticlePackage     @relation(fields: [packageId], references: [id])
+  status            SubscriptionStatus @default(ACTIVE)
+  startDate         DateTime           @default(now())
+  endDate           DateTime?
+  billingPreference BillingPreference  @default(INVOICE_APPROVAL)
+  notes             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  contentPlans ContentPlan[]
+  invoices     Invoice[]
+}
+
+enum ContentPlanStatus {
+  DRAFT // team is building it
+  AWAITING_APPROVAL // sent to the client via private link
+  APPROVED // client signed off — production can run
+  ARCHIVED
+}
+
+enum PlanItemStatus {
+  PLANNED // on the plan, nothing started
+  IN_PRODUCTION // article created, working toward READY
+  READY // article approved, waiting for its scheduled date
+  DELIVERED // released to the client on schedule
+  DROPPED // cut from the plan
+}
+
+model ContentPlan {
+  id             String            @id @default(cuid())
+  businessId     String
+  business       Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   Subscription?     @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  periodStart    DateTime // first day of the plan month
+  periodEnd      DateTime // last day of the plan month
+  status         ContentPlanStatus @default(DRAFT)
+  approvedAt     DateTime?
+  sentAt         DateTime?
+  clientNote     String? // note returned with approval / change request
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  items       ContentPlanItem[]
+  clientLinks ClientLink[]
+
+  @@unique([businessId, periodStart])
+}
+
+model ContentPlanItem {
+  id            String         @id @default(cuid())
+  contentPlanId String
+  contentPlan   ContentPlan    @relation(fields: [contentPlanId], references: [id], onDelete: Cascade)
+  title         String
+  rationale     String?
+  scheduledFor  DateTime
+  status        PlanItemStatus @default(PLANNED)
+  sortOrder     Int            @default(0)
+  articleId     String? // set once production starts
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+enum ClientLinkPurpose {
+  PLAN_APPROVAL
+  QUOTE
+  INVOICE
+}
+
+// Client-facing capability token. Article links stay in PrivateLink;
+// this handles plans, quotes and invoices sent to customers.
+model ClientLink {
+  id            String            @id @default(cuid())
+  tokenHash     String            @unique
+  purpose       ClientLinkPurpose
+  businessId    String
+  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  contentPlanId String?
+  contentPlan   ContentPlan?      @relation(fields: [contentPlanId], references: [id], onDelete: Cascade)
+  quoteId       String?
+  quote         Quote?            @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  invoiceId     String?
+  invoice       Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  revokedAt     DateTime?
+  expiresAt     DateTime?
+  viewCount     Int               @default(0)
+  lastViewedAt  DateTime?
+  createdAt     DateTime          @default(now())
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Quote {
+  id            String      @id @default(cuid())
+  businessId    String
+  business      Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  number        String      @unique // Q-0001
+  status        QuoteStatus @default(DRAFT)
+  lines         Json // [{description, quantity, unitPriceCents}]
+  subtotalCents Int         @default(0)
+  taxRateBps    Int         @default(1000) // 10% GST; 0 = no tax
+  taxCents      Int         @default(0)
+  totalCents    Int         @default(0)
+  currency      String      @default("AUD")
+  validUntil    DateTime?
+  sentAt        DateTime?
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  clientLinks ClientLink[]
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  businessId     String
+  business       Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  quoteId        String?       @unique // set when generated from an accepted quote
+  number         String        @unique // INV-0001
+  status         InvoiceStatus @default(DRAFT)
+  lines          Json
+  subtotalCents  Int           @default(0)
+  taxRateBps     Int           @default(1000)
+  taxCents       Int           @default(0)
+  totalCents     Int           @default(0)
+  currency       String        @default("AUD")
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime?
+  sentAt         DateTime?
+  paidAt         DateTime?
+  voidedAt       DateTime?
+  cardPaymentUrl String? // reserved for Stripe later — never populated in this build
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  payments    Payment[]
+  clientLinks ClientLink[]
+
+  @@index([businessId])
+  @@index([status])
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amountCents  Int
+  method       PaymentMethod @default(BANK_TRANSFER)
+  reference    String? // e.g. bank transfer reference
+  receivedAt   DateTime      @default(now())
+  recordedById String?
+  recordedBy   User?         @relation("paymentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
 }

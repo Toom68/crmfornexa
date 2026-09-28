@@ -212,14 +212,20 @@ registerJobHandler("send_message", async ({ payload }: JobContext) => {
   });
 
   // Move the prospect forward and schedule the follow-up reminder.
+  // Customers don't get a generic follow-up stamped — their nextAction is
+  // driven by the plan/quote/invoice flows instead.
   const followupHours = await getSetting<number>("followup.hours");
   const advance = message.direction === "OUTBOUND" && ["NEW_PROSPECT", "PREPARING_OUTREACH"].includes(message.business.salesStage);
+  const scheduleFollowup =
+    message.direction === "OUTBOUND" &&
+    !message.business.isCustomer &&
+    ["NEW_PROSPECT", "PREPARING_OUTREACH", "CONTACTED", "INTERESTED", "PROPOSAL"].includes(message.business.salesStage);
   await prisma.business.update({
     where: { id: message.businessId },
     data: {
       salesStage: advance ? "CONTACTED" : message.business.salesStage,
-      nextAction: "Follow up — no reply yet",
-      nextActionAt: new Date(Date.now() + followupHours * 3_600_000),
+      nextAction: scheduleFollowup ? "Follow up — no reply yet" : message.business.nextAction,
+      nextActionAt: scheduleFollowup ? new Date(Date.now() + followupHours * 3_600_000) : message.business.nextActionAt,
     },
   });
   await prisma.activityLog.create({
@@ -347,4 +353,57 @@ registerN8nApplier("n8n_draft", async (job, result) => {
     where: { id: articleId },
     data: { stage: "HUMAN_EDIT", currentVersionId: v.id, title: r.title ?? article.title },
   });
+});
+
+// ---------------------------------------------------------------- customer scan
+// Periodic sweep: stamps overdue invoices, expires stale quotes, and keeps
+// each customer's nextAction pointing at the most pressing duty. Reschedules
+// itself hourly (hour-bucketed idempotency key prevents pile-ups).
+registerJobHandler("customer_scan", async () => {
+  const now = new Date();
+  let overdue = 0;
+  let expired = 0;
+
+  // Sent invoices past their due date with money still owing → OVERDUE
+  const pastDue = await prisma.invoice.findMany({
+    where: { status: "SENT", dueDate: { lt: now } },
+    include: { payments: true },
+  });
+  for (const inv of pastDue) {
+    const owing = inv.totalCents - inv.payments.reduce((s, p) => s + p.amountCents, 0);
+    if (owing <= 0) continue;
+    await prisma.invoice.update({ where: { id: inv.id }, data: { status: "OVERDUE" } });
+    await prisma.business.update({
+      where: { id: inv.businessId },
+      data: {
+        nextAction: `Chase payment — invoice ${inv.number} is overdue`,
+        nextActionAt: now,
+      },
+    });
+    overdue++;
+  }
+
+  // Sent quotes past their valid-until → EXPIRED + revoke their links
+  const staleQuotes = await prisma.quote.findMany({
+    where: { status: "SENT", validUntil: { lt: now } },
+  });
+  for (const q of staleQuotes) {
+    await prisma.quote.update({ where: { id: q.id }, data: { status: "EXPIRED" } });
+    await prisma.clientLink.updateMany({
+      where: { quoteId: q.id, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    expired++;
+  }
+
+  // self-reschedule for the top of the next hour
+  const nextHour = new Date(now);
+  nextHour.setMinutes(60, 0, 0);
+  await enqueueJob(
+    "customer_scan",
+    {},
+    { runAt: nextHour, idempotencyKey: `customer_scan:${nextHour.getTime()}`, maxAttempts: 2 },
+  );
+
+  return { note: `${overdue} invoice(s) overdue, ${expired} quote(s) expired` };
 });

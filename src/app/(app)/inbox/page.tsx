@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { pollInboxNow } from "@/lib/actions/message";
 import { formatRelative } from "@/lib/utils";
-import { RefreshCw } from "lucide-react";
+import { needsReply } from "@/lib/workflow";
+import { RefreshCw, Mail, MessageSquare, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -18,65 +19,91 @@ export default async function InboxPage() {
   });
   const account = await prisma.emailAccount.findFirst({ where: { status: "active" } });
 
-  // Group into threads by business
+  // Group into threads by business, newest activity first
   const byBusiness = new Map<string, typeof messages>();
   for (const m of messages) {
     const list = byBusiness.get(m.businessId) ?? [];
     list.push(m);
     byBusiness.set(m.businessId, list);
   }
+  const threads = [...byBusiness.entries()]
+    .map(([businessId, msgs]) => {
+      const b = msgs[0].business;
+      return {
+        businessId,
+        business: b,
+        latest: msgs[0],
+        needsAction: needsReply(b.nextAction),
+        msgCount: msgs.length,
+        lastInbound: msgs.find((m) => m.direction === "INBOUND") ?? null,
+      };
+    })
+    .sort((a, z) => (z.needsAction ? 1 : 0) - (a.needsAction ? 1 : 0) || z.latest.createdAt.getTime() - a.latest.createdAt.getTime());
 
   return (
     <div>
       <PageHeader
-        title="Shared inbox"
-        description={account ? `Connected to ${account.email}` : "No mailbox connected — connect Gmail in Settings → Integrations"}
+        title="Inbox"
+        description={account ? `Shared mailbox — ${account.email}` : "No mailbox connected yet — hook up Gmail in Settings"}
         actions={
           <form action={pollInboxNow}>
-            <Button variant="outline"><RefreshCw className="mr-2 h-4 w-4" />Check for replies</Button>
+            <Button type="submit" variant="outline"><RefreshCw className="mr-2 h-4 w-4" />Check for replies</Button>
           </form>
         }
       />
-      <div className="max-w-4xl space-y-3 p-8">
-        {[...byBusiness.entries()].map(([businessId, msgs]) => {
-          const b = msgs[0].business;
-          const latest = msgs[0];
-          const needsAction = b.nextAction?.includes("Reply received") || b.nextAction?.includes("SMS reply");
-          return (
-            <Card key={businessId} className={needsAction ? "border-primary/50" : ""}>
-              <CardContent className="py-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <Link href={`/prospects/${businessId}`} className="font-medium hover:underline">{b.name}</Link>
-                    {needsAction && <Badge className="ml-2">needs reply</Badge>}
+      <div className="mx-auto max-w-3xl px-8 py-8">
+        {threads.length === 0 ? (
+          <div className="rounded-xl border bg-card px-8 py-14 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent">
+              <Mail className="h-6 w-6 text-accent-foreground" />
+            </div>
+            <h2 className="mt-4 font-heading text-xl font-semibold">No conversations yet</h2>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+              Once you send an introduction from a prospect&apos;s page, replies land here.
+            </p>
+            <Button className="mt-6" variant="outline" render={<Link href="/prospects" />}>
+              Go to prospects<ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            {threads.map((t) => (
+              <Link
+                key={t.businessId}
+                href={`/prospects/${t.businessId}?tab=messages`}
+                className="group flex items-start gap-4 border-b px-5 py-4 transition-colors last:border-b-0 hover:bg-accent/50"
+              >
+                <div
+                  className={cn(
+                    "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                    t.needsAction ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground",
+                  )}
+                >
+                  {t.business.name.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium">{t.business.name}</span>
+                    {t.needsAction && <Badge>needs reply</Badge>}
+                    {t.msgCount > 1 && (
+                      <span className="text-xs text-muted-foreground">{t.msgCount} messages</span>
+                    )}
                   </div>
-                  <span className="text-xs text-muted-foreground">{formatRelative(latest.createdAt)}</span>
+                  <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
+                    <span className="mr-1.5 inline-flex items-center gap-0.5 align-[-2px] text-muted-foreground/70">
+                      {t.latest.channel === "SMS" ? <MessageSquare className="h-3 w-3" /> : <Mail className="h-3 w-3" />}
+                    </span>
+                    {t.latest.direction === "INBOUND" ? "" : "You: "}
+                    {t.latest.bodyText}
+                  </p>
                 </div>
-                <div className="mt-2 space-y-2">
-                  {msgs.slice(0, 3).map((m) => (
-                    <div key={m.id} className={`rounded-md border p-2.5 text-sm ${m.direction === "INBOUND" ? "bg-accent/40" : ""}`}>
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>{m.direction === "INBOUND" ? "← " : "→ "}{m.channel.toLowerCase()}{m.status === "SIMULATED" ? " (simulated)" : ""}</span>
-                        <span>{formatRelative(m.createdAt)}</span>
-                      </div>
-                      {m.subject && <p className="mt-0.5 font-medium">{m.subject}</p>}
-                      <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-muted-foreground">{m.bodyText}</p>
-                    </div>
-                  ))}
+                <div className="shrink-0 text-right">
+                  <div className="text-xs text-muted-foreground">{formatRelative(t.latest.createdAt)}</div>
+                  <ArrowRight className="ml-auto mt-2 h-4 w-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                 </div>
-                <div className="mt-2">
-                  <Button size="sm" variant="outline" render={<Link href={`/prospects/${businessId}`} />}>
-                    Open record →
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-        {byBusiness.size === 0 && (
-          <p className="py-16 text-center text-sm text-muted-foreground">
-            No messages yet — send an introduction from a prospect&apos;s page.
-          </p>
+              </Link>
+            ))}
+          </div>
         )}
       </div>
     </div>

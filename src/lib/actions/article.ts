@@ -92,6 +92,16 @@ export async function setArticleStage(articleId: string, stage: "HUMAN_EDIT" | "
     where: { id: articleId },
     data: { stage, deliveredAt: stage === "DELIVERED" ? new Date() : undefined },
   });
+  // Keep the customer content plan in step: a plan item whose article is approved
+  // becomes READY for its scheduled release; delivering marks it DELIVERED.
+  await prisma.contentPlanItem.updateMany({
+    where: { articleId, status: "IN_PRODUCTION" },
+    data: { status: stage === "APPROVED" || stage === "DELIVERED" ? "READY" : "IN_PRODUCTION" },
+  });
+  await prisma.contentPlanItem.updateMany({
+    where: { articleId, status: { not: "DROPPED" } },
+    data: stage === "DELIVERED" ? { status: "DELIVERED" } : { status: undefined },
+  });
   await logActivity({ actorId: user.id, action: `article.stage_${stage.toLowerCase()}`, entityType: "article", entityId: articleId });
   revalidatePath(`/articles/${articleId}`);
   revalidatePath(`/prospects/${article.businessId}`);

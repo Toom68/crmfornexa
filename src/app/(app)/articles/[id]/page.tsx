@@ -138,23 +138,23 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
               {article.stage === "HUMAN_EDIT" && (
                 <>
                   <form action={setArticleStage.bind(null, article.id, "APPROVED")}>
-                    <Button className="w-full">Mark ready for delivery</Button>
+                    <Button type="submit" className="w-full">Mark ready for delivery</Button>
                   </form>
                   <form action={regenerate.bind(null, article.id)}>
-                    <Button variant="outline" className="w-full">Regenerate draft (new version)</Button>
+                    <Button type="submit" variant="outline" className="w-full">Regenerate draft (new version)</Button>
                   </form>
                 </>
               )}
               {article.stage === "REVISIONS" && (
                 <form action={setArticleStage.bind(null, article.id, "HUMAN_EDIT")}>
-                  <Button variant="secondary" className="w-full">Back to editing</Button>
+                  <Button type="submit" variant="secondary" className="w-full">Back to editing</Button>
                 </form>
               )}
               {article.stage === "APPROVED" && (
                 <>
                   <p className="text-xs text-muted-foreground">Ready — create a link and include it in outreach.</p>
                   <form action={setArticleStage.bind(null, article.id, "DELIVERED")}>
-                    <Button variant="secondary" className="w-full">Mark delivered</Button>
+                    <Button type="submit" variant="secondary" className="w-full">Mark delivered</Button>
                   </form>
                 </>
               )}
@@ -175,11 +175,14 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
                     {l.revokedAt ? <Badge variant="destructive">revoked</Badge> : <Badge variant="secondary">active</Badge>}
                   </div>
                   <div className="mt-1 text-muted-foreground">created {formatRelative(l.createdAt)}{l.lastViewedAt ? ` · last viewed ${formatRelative(l.lastViewedAt)}` : ""}</div>
-                  {!l.revokedAt && (
-                    <form action={revokePrivateLink.bind(null, l.id)} className="mt-1.5">
-                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs">Revoke</Button>
-                    </form>
-                  )}
+                  <div className="mt-1.5 flex items-center gap-3">
+                    {!l.revokedAt && (
+                      <form action={revokePrivateLink.bind(null, l.id)}>
+                        <Button type="submit" size="sm" variant="ghost" className="h-6 px-2 text-xs">Revoke</Button>
+                      </form>
+                    )}
+
+                  </div>
                 </div>
               ))}
             </CardContent>

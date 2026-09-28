@@ -49,7 +49,7 @@ export function ProfileEditor({
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="text-sm font-medium">Business profile</CardTitle>
         <form action={generateProfile.bind(null, businessId)}>
-          <Button size="sm" variant="secondary"><Sparkles className="mr-1.5 h-3.5 w-3.5" />Generate from website</Button>
+          <Button type="submit" size="sm" variant="secondary"><Sparkles className="mr-1.5 h-3.5 w-3.5" />Generate from website</Button>
         </form>
       </CardHeader>
       <CardContent className="space-y-3">

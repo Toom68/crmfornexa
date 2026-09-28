@@ -19,7 +19,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
         description={`${template.channel.toLowerCase()} template`}
         actions={
           <form action={deleteTemplate.bind(null, template.id)}>
-            <Button variant="destructive" size="sm">Delete</Button>
+            <Button type="submit" variant="destructive" size="sm">Delete</Button>
           </form>
         }
       />

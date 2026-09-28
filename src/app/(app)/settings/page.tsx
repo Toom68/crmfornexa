@@ -28,6 +28,14 @@ async function saveSettings(formData: FormData) {
     "prospecting.rankDepth": Number(formData.get("prospecting.rankDepth") ?? 50),
     "prospecting.categories": String(formData.get("prospecting.categories") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     "prospecting.cities": String(formData.get("prospecting.cities") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+    "billing.abn": String(formData.get("billing.abn") ?? ""),
+    "billing.bsb": String(formData.get("billing.bsb") ?? ""),
+    "billing.accountNumber": String(formData.get("billing.accountNumber") ?? ""),
+    "billing.accountName": String(formData.get("billing.accountName") ?? ""),
+    "billing.paymentInstructions": String(formData.get("billing.paymentInstructions") ?? ""),
+    "billing.taxRateBps": Math.round(Number(formData.get("billing.taxRatePercent") ?? 10) * 100),
+    "billing.invoiceDueDays": Number(formData.get("billing.invoiceDueDays") ?? 14),
+    "billing.adhocArticlePriceCents": Math.round(Number(formData.get("billing.adhocArticlePriceDollars") ?? 350) * 100),
   };
   for (const [k, v] of Object.entries(updates)) await setSetting(k, v);
   revalidatePath("/settings");
@@ -68,6 +76,21 @@ export default async function SettingsPage({
               <div className="space-y-1.5"><Label className="text-xs">Rank check depth (results)</Label><Input name="prospecting.rankDepth" type="number" defaultValue={String(s["prospecting.rankDepth"])} /></div>
               <div className="space-y-1.5"><Label className="text-xs">Service categories</Label><Input name="prospecting.categories" defaultValue={(s["prospecting.categories"] as string[]).join(", ")} /></div>
               <div className="space-y-1.5"><Label className="text-xs">Cities</Label><Input name="prospecting.cities" defaultValue={(s["prospecting.cities"] as string[]).join(", ")} /></div>
+              <Separator />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5"><Label className="text-xs">GST rate (%)</Label><Input name="billing.taxRatePercent" type="number" step="0.1" min="0" defaultValue={String(Number(s["billing.taxRateBps"]) / 100)} /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Invoice due after (days)</Label><Input name="billing.invoiceDueDays" type="number" defaultValue={String(s["billing.invoiceDueDays"])} /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Ad-hoc article price ($)</Label><Input name="billing.adhocArticlePriceDollars" type="number" step="0.01" min="0" defaultValue={(Number(s["billing.adhocArticlePriceCents"]) / 100).toFixed(2)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><Label className="text-xs">ABN (on invoices)</Label><Input name="billing.abn" defaultValue={String(s["billing.abn"])} /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Account name</Label><Input name="billing.accountName" defaultValue={String(s["billing.accountName"])} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><Label className="text-xs">BSB</Label><Input name="billing.bsb" defaultValue={String(s["billing.bsb"])} placeholder="062-000" /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Account number</Label><Input name="billing.accountNumber" defaultValue={String(s["billing.accountNumber"])} /></div>
+              </div>
+              <div className="space-y-1.5"><Label className="text-xs">Payment instructions (shown on invoices)</Label><Input name="billing.paymentInstructions" defaultValue={String(s["billing.paymentInstructions"])} /></div>
               <Button type="submit">Save settings</Button>
             </form>
           </CardContent>
@@ -123,6 +146,16 @@ export default async function SettingsPage({
                   {jobStats.map((j) => `${j.status.toLowerCase()} ${j._count}`).join(" · ") || "none"}
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium">Packages</CardTitle>
+              <Button size="sm" variant="outline" render={<Link href="/settings/packages" />}>Manage</Button>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Monthly article packages — quantities and prices are fully customisable.
             </CardContent>
           </Card>
 

@@ -51,10 +51,6 @@ export function QualBadge({ status }: { status: QualificationStatus }) {
   return <Badge variant={variant}>{QUAL_LABELS[status]}</Badge>;
 }
 
-export function SampleBadge() {
-  return <Badge variant="outline" className="border-amber-400 text-amber-600">SAMPLE</Badge>;
-}
-
 export function salesStageLabel(s: SalesStage) {
   return SALES_LABELS[s];
 }

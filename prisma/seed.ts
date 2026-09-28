@@ -2,7 +2,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const adapter = new PrismaPg({ connectionString: process.env.DIRECT_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
@@ -18,7 +18,6 @@ async function main() {
     if (!res.user) throw new Error("signUpEmail failed");
     console.log("Created login: tomy / tomy");
   }
-
   // ---- built-in templates ----
   const templates = [
     {
@@ -63,52 +62,122 @@ Happy to answer any questions.
 
 Unsubscribe: {{unsubscribe_url}}`,
     },
+    {
+      name: "Content plan — approval request (email)",
+      channel: "EMAIL" as const,
+      isBuiltIn: true,
+      subject: "Your {{plan_month}} content plan",
+      body: `Hi {{contact_name}},
+
+Here's what we're planning to write for {{business_name}} in {{plan_month}}:
+
+{{plan_link}}
+
+Take a look — you can approve it there or tell us what to change. Once you approve, we'll get writing and deliver each article on its scheduled date.
+
+{{sender_signature}}`,
+    },
+    {
+      name: "Content plan — approval request (SMS)",
+      channel: "SMS" as const,
+      isBuiltIn: true,
+      subject: null,
+      body: `Hi {{contact_name}}, your {{plan_month}} content plan is ready to review: {{plan_link}} — approve it there or reply with changes. {{sender_name}}`,
+    },
+    {
+      name: "Plan approval reminder (email)",
+      channel: "EMAIL" as const,
+      isBuiltIn: true,
+      subject: "Re: Your {{plan_month}} content plan",
+      body: `Hi {{contact_name}},
+
+Quick nudge — the {{plan_month}} plan for {{business_name}} is still waiting on your tick:
+
+{{plan_link}}
+
+If anything looks off, just reply here and we'll adjust it.
+
+{{sender_signature}}`,
+    },
+    {
+      name: "Quote sent (email)",
+      channel: "EMAIL" as const,
+      isBuiltIn: true,
+      subject: "Quote {{quote_number}} for {{business_name}}",
+      body: `Hi {{contact_name}},
+
+Here's your quote — you can view it and accept it online:
+
+{{quote_link}}
+
+Any questions, just reply to this email.
+
+{{sender_signature}}`,
+    },
+    {
+      name: "Invoice (email)",
+      channel: "EMAIL" as const,
+      isBuiltIn: true,
+      subject: "Invoice {{invoice_number}} for {{business_name}}",
+      body: `Hi {{contact_name}},
+
+Your invoice is ready — it has the totals and our bank details for transfer:
+
+{{invoice_link}}
+
+Thanks!
+
+{{sender_signature}}`,
+    },
+    {
+      name: "Payment received (email)",
+      channel: "EMAIL" as const,
+      isBuiltIn: true,
+      subject: "Payment received — thank you",
+      body: `Hi {{contact_name}},
+
+Just confirming we've received your payment — thank you. Receipt details are on your invoice if you need them for your records.
+
+{{sender_signature}}`,
+    },
+    {
+      name: "Article delivered (email)",
+      channel: "EMAIL" as const,
+      isBuiltIn: true,
+      subject: "Your article is ready: {{article_title}}",
+      body: `Hi {{contact_name}},
+
+Your latest article is ready — read it, copy it, or download it (Word doc or web-ready HTML) here:
+
+{{article_title}}
+{{article_link}}
+
+You publish it whenever you're ready — if anything needs a tweak, reply and we'll fix it.
+
+{{sender_signature}}`,
+    },
+    {
+      name: "Article delivered (SMS)",
+      channel: "SMS" as const,
+      isBuiltIn: true,
+      subject: null,
+      body: `Hi {{contact_name}}, your article "{{article_title}}" is ready: {{article_link}} — download it as a Word doc or HTML. {{sender_name}}`,
+    },
   ];
   for (const t of templates) {
     const exists = await prisma.messageTemplate.findFirst({ where: { name: t.name } });
     if (!exists) await prisma.messageTemplate.create({ data: t });
   }
 
-  // ---- clearly-labelled SAMPLE prospects (isSample = true) ----
-  const samples = [
-    {
-      name: "Harbourview Kitchens (SAMPLE)",
-      domain: "harbourview-kitchens.example.com",
-      website: "https://harbourview-kitchens.example.com",
-      city: "Sydney",
-      state: "NSW",
-      categories: ["kitchen renovation"],
-    },
-    {
-      name: "Brighton Bathworks (SAMPLE)",
-      domain: "brighton-bathworks.example.com",
-      website: "https://brighton-bathworks.example.com",
-      city: "Melbourne",
-      state: "VIC",
-      categories: ["bathroom renovation"],
-    },
+  // ---- default packages (editable in Settings → Packages) ----
+  const defaultPackages = [
+    { name: "Starter", description: "Two articles a month", articlesPerMonth: 2, priceCents: 70000 },
+    { name: "Growth", description: "Four articles a month", articlesPerMonth: 4, priceCents: 120000 },
+    { name: "Authority", description: "Eight articles a month", articlesPerMonth: 8, priceCents: 200000 },
   ];
-  for (const s of samples) {
-    const exists = await prisma.business.findUnique({ where: { domain: s.domain } });
-    if (!exists) {
-      await prisma.business.create({
-        data: {
-          ...s,
-          categories: s.categories,
-          isSample: true,
-          source: "sample",
-          contacts: {
-            create: {
-              name: "Sample Contact",
-              email: `hello@${s.domain}`,
-              isPrimary: true,
-              source: "sample",
-              permissionBasis: "unknown",
-            },
-          },
-        },
-      });
-    }
+  for (const p of defaultPackages) {
+    const exists = await prisma.articlePackage.findFirst({ where: { name: p.name } });
+    if (!exists) await prisma.articlePackage.create({ data: p });
   }
 
   console.log("Seed complete");

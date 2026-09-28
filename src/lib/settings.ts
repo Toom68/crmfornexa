@@ -14,7 +14,14 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   "outreach.defaultChannel": "EMAIL",
   "outreach.senderSignature": "The team at Nexa",
   "sms.provider": "simulated",
-  "sampleData.enabled": true,
+  "billing.abn": "",
+  "billing.bsb": "",
+  "billing.accountNumber": "",
+  "billing.accountName": "",
+  "billing.paymentInstructions": "Please use the invoice number as the payment reference.",
+  "billing.taxRateBps": 1000, // 10% GST — set 0 if not GST-registered
+  "billing.invoiceDueDays": 14,
+  "billing.adhocArticlePriceCents": 35000,
 };
 
 export async function getSetting<T>(key: string): Promise<T> {

@@ -6,7 +6,7 @@
 ┌────────────┐   cron tick     ┌──────────────────────────────┐
 │ GitHub     │ ──────────────▶ │  Next.js app (Vercel)        │
 │ Actions    │  POST /api/     │  UI + API + private links    │
-└────────────┘  internal/tick  │  Postgres (Neon / Docker)    │
+└────────────┘  internal/tick  │  Supabase Postgres       │
                                │         ▲                    │
 ┌────────────┐  poll+webhook   │  /api/n8n/jobs/next          │
 │ n8n        │ ◀────────────── │  /api/n8n/callback           │
@@ -16,7 +16,7 @@
 ```
 
 - **Vercel Hobby ($0)** hosts the app: UI, API, private article pages, inbound webhooks.
-- **Postgres** is the source of truth. Dev: Docker. Prod: Neon free tier (0.5 GB — ample).
+- **Supabase Postgres** is the source of truth in development and production. Prisma uses the transaction pooler for app queries and the session pooler for migrations.
 - **GitHub Actions cron (~10 min)** → `/api/internal/tick` claims due `Job` rows:
   Gmail poll, website inspections, rank checks, queued sends, retry sweep. Bounded
   to the ~60 s serverless limit; long work is delegated to n8n.
@@ -45,13 +45,13 @@
   and never count as an organic ranking. All findings keep evidence URLs.
 - **Compliance by construction.** Contacts carry `source` + `permissionBasis`;
   every email carries an HMAC-signed unsubscribe link; STOP opts out of SMS;
-  sends are manual/reviewed; sample + simulated data is always labelled.
+  sends are manual/reviewed; simulated data is always labelled.
 
 ## Cost forecast (phase-1 volume: 10–50 prospects/wk)
 
 | Item | Cost |
 |---|---|
-| Vercel Hobby, Neon free, n8n self-hosted, GitHub Actions | $0 |
+| Vercel Hobby, Supabase free tier, n8n self-hosted, GitHub Actions | $0 |
 | DataForSEO | ~$1–5/mo |
 | OpenAI (mini-class models, ~40 articles/mo) | ~$3–15/mo |
 | Gmail | $0 |
@@ -60,7 +60,7 @@
 
 ## Deploy (Vercel)
 
-1. Create a Neon project → copy pooled `DATABASE_URL` into Vercel env.
+1. Create a Supabase project and set its transaction pooler URL as `DATABASE_URL` and session pooler URL as `DIRECT_URL` in Vercel.
 2. Set `APP_BASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_SECRET`,
    `INTERNAL_API_SECRET`, `CRM_N8N_SECRET` + provider keys.
 3. `prisma migrate deploy` (locally against the prod URL, or a CI step).

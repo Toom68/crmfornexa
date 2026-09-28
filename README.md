@@ -1,15 +1,20 @@
 # Nexa CRM
 
 A lightweight CRM + content-production system for an Australian SEO-article business.
-Phase 1 covers the full prospecting → outreach loop: find renovation businesses,
+It covers the full prospecting → outreach → customer loop: find renovation businesses,
 verify they're a fit (inactive blog + weak organic visibility), produce a free article
 via n8n/OpenAI, deliver it over a private link, send a templated introduction, and
 manage replies and follow-ups in a shared inbox.
 
+Won deals convert to customers: monthly content plans the client approves via a
+private link, articles released on schedule with manual confirmation, and
+quotes/invoices with GST, bank-transfer tracking and part payments — all from
+the same business record.
+
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript) — UI + API in one app, deploys to Vercel free tier
-- **Postgres** via Prisma 7 (Docker locally, Neon free tier in prod)
+- **Supabase Postgres** via Prisma 7
 - **better-auth** — individual team logins, full access for everyone
 - **Tailwind v4 + shadcn/ui + Tiptap** — polished desktop UI + article editor
 - **n8n** (self-hosted, Docker) — AI pipelines: business profile, topics, research, draft
@@ -21,16 +26,20 @@ manage replies and follow-ups in a shared inbox.
 ## Setup
 
 ```bash
-cp .env.example .env            # then fill in secrets (see "Integrations" below)
-docker compose up -d postgres   # local database
+cp .env.example .env            # add your Supabase connection strings and secrets
 npm install
 npm run db:migrate
-npm run db:seed                 # demo login + sample data (clearly labelled)
+npm run db:seed                 # dev login, built-in templates + default packages
 npm run dev
 ```
 
 Login: `tomy` / `tomy` (seed account — change it). A bare username signs in as `name@nexa.test`; full emails work too.
 New teammates create accounts on `/login`; everyone has full access.
+
+Create a Supabase project, then copy its Transaction pooler string (port 6543) to
+`DATABASE_URL` and its Session pooler string (port 5432) to `DIRECT_URL` in
+`.env`. Prisma migrations and seeds use `DIRECT_URL`; app queries use
+`DATABASE_URL`. Keep the database password URL-encoded if it contains special characters.
 
 ## Background jobs
 

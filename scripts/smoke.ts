@@ -12,7 +12,6 @@ async function main() {
       name: "Smoke Test Renos",
       domain: "smoke-test.example.com",
       website: "https://smoke-test.example.com",
-      isSample: true,
       city: "Melbourne",
       contacts: { create: { email: "hi@smoke-test.example.com", isPrimary: true } },
     },

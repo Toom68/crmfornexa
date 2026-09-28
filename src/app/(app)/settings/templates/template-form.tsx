@@ -30,7 +30,7 @@ export function TemplateForm({
           <div className="space-y-1.5">
             <Label>Channel</Label>
             <Select value={channel} onValueChange={(v) => setChannel(v ?? "EMAIL")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue>{(v: string) => (v === "EMAIL" ? "Email" : "SMS")}</SelectValue></SelectTrigger>
               <SelectContent>
                 <SelectItem value="EMAIL">Email</SelectItem>
                 <SelectItem value="SMS">SMS</SelectItem>

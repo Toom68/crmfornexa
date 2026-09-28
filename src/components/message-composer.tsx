@@ -48,7 +48,7 @@ export function MessageComposer({
             <div className="space-y-1.5">
               <Label className="text-xs">Channel</Label>
               <Select value={channel} onValueChange={(v) => setChannel(v as "EMAIL" | "SMS")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue>{(v: string) => (v === "EMAIL" ? "Email" : "SMS")}</SelectValue></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="EMAIL">Email</SelectItem>
                   <SelectItem value="SMS">SMS</SelectItem>
@@ -58,7 +58,14 @@ export function MessageComposer({
             <div className="space-y-1.5">
               <Label className="text-xs">To</Label>
               <Select name="contactId">
-                <SelectTrigger><SelectValue placeholder="Pick a contact" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick a contact">
+                    {(v: string) => {
+                      const c = contacts.find((x) => x.id === v);
+                      return c ? (c.name ?? (channel === "EMAIL" ? c.email : c.phone)) : "Pick a contact";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {usable.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -72,7 +79,11 @@ export function MessageComposer({
           <div className="space-y-1.5">
             <Label className="text-xs">Template</Label>
             <Select onValueChange={applyTemplate}>
-              <SelectTrigger><SelectValue placeholder="Start from a template…" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Start from a template…">
+                  {(v: string) => templates.find((t) => t.id === v)?.name ?? "Start from a template…"}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
