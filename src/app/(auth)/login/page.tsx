@@ -3,7 +3,12 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   // If there are no users yet this is a first run — show create-account copy.
   const userCount = await prisma.user.count();
   return (
@@ -18,7 +23,10 @@ export default async function LoginPage() {
             {userCount === 0 ? "Create the first account to get started" : "Welcome back"}
           </p>
         </div>
-        <LoginForm firstRun={userCount === 0} />
+        <LoginForm
+          firstRun={userCount === 0}
+          initialError={error === "confirm" ? "That link didn't work — try signing in or request a new one." : null}
+        />
       </div>
     </div>
   );

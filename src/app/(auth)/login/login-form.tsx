@@ -8,13 +8,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function LoginForm({ firstRun }: { firstRun: boolean }) {
+export function LoginForm({
+  firstRun,
+  initialError,
+}: {
+  firstRun: boolean;
+  initialError?: string | null;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">(firstRun ? "signup" : "signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
