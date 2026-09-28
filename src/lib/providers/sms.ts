@@ -44,9 +44,31 @@ async function sendViaClickSend(to: string, body: string): Promise<SendSmsResult
   return { providerMessageId: json.data?.messages?.[0]?.message_id ?? "", simulated: false };
 }
 
+/**
+ * Crazytel (AU). https://developer.crazytel.io — POST /api/v1/sms/send
+ * takes the params as a query string; auth is the x-crazytel-api-key
+ * header. `to_number` must be an Australian mobile (04… or 614…).
+ */
+async function sendViaCrazytel(to: string, body: string): Promise<SendSmsResult> {
+  const key = process.env.CRAZYTEL_API_KEY;
+  const from = process.env.CRAZYTEL_FROM_NUMBER;
+  if (!key || !from) throw new Error("Crazytel is not configured");
+  const params = new URLSearchParams({ from_number: from, to_number: to, message: body });
+  const res = await fetch(`https://crazytel.io/api/v1/sms/send?${params}`, {
+    method: "POST",
+    headers: { "x-crazytel-api-key": key },
+  });
+  if (!res.ok) throw new Error(`Crazytel send failed: ${res.status} ${await res.text()}`);
+  const json = (await res.json()) as { status?: string; status_detail?: string };
+  if (json.status && json.status !== "success")
+    throw new Error(`Crazytel send failed: ${json.status} ${json.status_detail ?? ""}`);
+  return { providerMessageId: `ct_${to}_${Date.now()}`, simulated: false };
+}
+
 export async function sendSms(to: string, body: string): Promise<SendSmsResult> {
   const provider = process.env.SMS_PROVIDER ?? "simulated";
   if (provider === "twilio") return sendViaTwilio(to, body);
   if (provider === "clicksend") return sendViaClickSend(to, body);
+  if (provider === "crazytel") return sendViaCrazytel(to, body);
   return { providerMessageId: `sim_${crypto.randomUUID()}`, simulated: true };
 }
